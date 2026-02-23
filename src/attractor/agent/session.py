@@ -17,10 +17,14 @@ from attractor.agent.profiles.base import ProviderProfile
 from attractor.agent.truncation import truncate_tool_output
 from attractor.llm.client import Client
 from attractor.llm.types import (
+    ContentKind,
+    ContentPart,
     Message,
     Request,
     Response,
+    Role,
     ToolCall,
+    ToolCallData,
     ToolResult,
     Usage,
 )
@@ -127,7 +131,20 @@ class Session:
             if turn.kind == "user":
                 messages.append(Message.user(turn.content))
             elif turn.kind == "assistant":
-                messages.append(Message.assistant(turn.content))
+                parts: list[ContentPart] = []
+                if turn.content:
+                    parts.append(ContentPart(kind=ContentKind.TEXT, text=turn.content))
+                if turn.tool_calls:
+                    for tc in turn.tool_calls:
+                        parts.append(ContentPart(
+                            kind=ContentKind.TOOL_CALL,
+                            tool_call=ToolCallData(
+                                id=tc.id,
+                                name=tc.name,
+                                arguments=tc.arguments,
+                            ),
+                        ))
+                messages.append(Message(role=Role.ASSISTANT, content=parts))
             elif turn.kind == "tool_results" and turn.tool_results:
                 for tr in turn.tool_results:
                     messages.append(Message.tool_result(
