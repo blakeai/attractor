@@ -7,25 +7,41 @@ digraph Discovery {
 
     explore [
         label="Explore",
-        prompt="Your goal is: $goal\nRepo: $repo\n\nExplore the codebase. Use your tools — read files, glob for patterns, grep for keywords, run shell commands. Understand the repo structure, existing code, tech stack, conventions, and anything relevant to the goal. If the repo is empty or new, note that and focus on what the project needs based on the goal and any README or docs present.\n\nOutput a summary of your raw findings."
+        prompt="Your goal is: $goal\nRepo: $repo\n\nExplore the codebase. Use your tools — read files, glob for patterns, grep for keywords, run shell commands. Understand the repo structure, existing code, tech stack, conventions, and anything relevant to the goal. If the repo is empty or new, note that and focus on what the project needs based on the goal and any README or docs present.\n\nOutput a concise summary of your findings."
+    ]
+
+    discuss_findings [
+        shape=hexagon,
+        label="Discuss findings — what direction do you want to go?"
     ]
 
     analyze [
         label="Analyze",
-        prompt="Your goal is: $goal\nRepo: $repo\n\nBased on your exploration, make architectural decisions. Break the goal down into discrete, implementable pieces of work. For each piece identify:\n- What it does (clear scope)\n- Why it matters\n- Key technical decisions or constraints\n- Acceptance criteria\n\nKeep each piece small enough to be a single focused issue. Think about dependency order — what needs to be built first?"
+        prompt="Your goal is: $goal\nRepo: $repo\n\nBased on the exploration and the human's input, break the goal down into discrete, implementable pieces of work. For each piece identify:\n- What it does (clear scope)\n- Why it matters\n- Acceptance criteria\n\nKeep each piece small enough to be a single focused issue. Think about dependency order — what needs to be built first?\n\nPresent the proposed issues as a numbered list with titles and one-line descriptions."
+    ]
+
+    discuss_plan [
+        shape=hexagon,
+        label="Review the proposed issues — add, remove, or change anything?"
     ]
 
     create_issues [
         label="Create Issues",
-        prompt="Your goal is: $goal\nRepo: $repo\n\nCreate GitHub issues for each piece of work identified in the analysis. Use the shell tool to run gh commands.\n\nFor each issue run:\ngh issue create --title \"<title>\" --body \"<body>\" --label \"discovery\"\n\nThe body should include:\n- Summary of what needs to be done\n- Acceptance criteria as a checklist\n- Any relevant technical context or constraints\n- Dependencies on other issues if applicable\n\nCreate issues in dependency order (foundational work first). After creating all issues, run `gh issue list` to confirm they were created."
+        prompt="Your goal is: $goal\nRepo: $repo\n\nCreate GitHub issues based on the agreed plan. Use the shell tool to run gh commands.\n\nFor each issue run:\ngh issue create --title \"<title>\" --body \"<body>\"\n\nThe body should include:\n- Summary of what needs to be done\n- Acceptance criteria as a checklist\n- Dependencies on other issues if applicable\n\nCreate issues in dependency order (foundational work first). After creating all issues, run `gh issue list` to confirm they were created."
     ]
 
-    review_gate [
+    review_issues [
         shape=hexagon,
-        label="Review Issues"
+        label="Issues created — approve or revise?"
     ]
 
-    start -> explore -> analyze -> create_issues -> review_gate
-    review_gate -> exit           [label="[A] Approve"]
-    review_gate -> create_issues  [label="[R] Revise"]
+    start -> explore -> discuss_findings
+    discuss_findings -> analyze     [label="[C] Continue"]
+    discuss_findings -> explore     [label="[R] Re-explore"]
+    analyze -> discuss_plan
+    discuss_plan -> create_issues   [label="[C] Create issues"]
+    discuss_plan -> analyze         [label="[R] Revise plan"]
+    create_issues -> review_issues
+    review_issues -> exit           [label="[A] Approve"]
+    review_issues -> create_issues  [label="[R] Revise"]
 }
