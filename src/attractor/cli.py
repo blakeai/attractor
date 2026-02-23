@@ -90,7 +90,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     auto_approve = config.get("auto_approve", False) or args.auto_approve
     interviewer = AutoApproveInterviewer() if auto_approve else ConsoleInterviewer()
 
-    logs_root = args.logs or config.get("logs") or f"./logs/{Path(dot_path).stem}"
+    default_logs = f"{repo_path}/.attractor/logs/{Path(dot_path).stem}"
+    logs_root = args.logs or config.get("logs") or default_logs
 
     # Wire up LLM backend if an API key is available
     codergen_backend = None
