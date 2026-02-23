@@ -103,7 +103,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         client = Client.from_env()
         if client._providers:
-            model = config.get("model", "claude-sonnet-4-20250514")
+            model = config.get("model") or graph.attrs.get("model", "claude-sonnet-4-20250514")
             codergen_backend = AgentBackend(
                 client=client, model=str(model), repo_path=repo_path,
             )

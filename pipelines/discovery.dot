@@ -1,5 +1,5 @@
 digraph Discovery {
-    graph [goal="$goal", repo="$repo"]
+    graph [goal="$goal", repo="$repo", model="claude-opus-4-6-20250627"]
     node [shape=box]
 
     start [shape=Mdiamond, label="Start"]
