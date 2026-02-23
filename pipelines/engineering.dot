@@ -1,40 +1,49 @@
 digraph Engineering {
-    graph [goal="$goal", retry_target=implement]
+    graph [goal="$goal", repo="$repo"]
     node [shape=box]
 
     start [shape=Mdiamond, label="Start"]
     exit  [shape=Msquare, label="Exit"]
 
-    plan [
-        label="Plan",
-        prompt="Your goal is: $goal\n\nRead the discovery spec and plan the implementation. Break down into components, identify file paths, define the development sequence, and outline the test strategy. Reference the .feature files from discovery as the source of truth for acceptance criteria."
+    read_issue [
+        label="Read Issue",
+        prompt="Your goal is: $goal\nRepo: $repo\n\nUse the shell tool to fetch the GitHub issue details with `gh issue view <number> --json title,body,labels`. Read the issue thoroughly. Then explore the repo to understand the current state — read relevant files, check the structure, understand conventions.\n\nOutput a summary of the issue requirements and the current repo state relevant to this work."
     ]
 
-    write_steps [
-        label="Write Steps",
-        prompt="Your goal is: $goal\n\nWrite Playwright BDD step definitions (.steps.ts) that implement the Given/When/Then steps from the .feature files produced in discovery. Use shared steps for common operations, page object patterns for UI interactions, and proper test context management."
-    ]
-
-    write_tests [
-        label="Write Tests",
-        prompt="Your goal is: $goal\n\nTDD RED phase. Write additional unit and integration tests based on the acceptance criteria. Tests MUST fail before implementation — verify they fail and report the failures. Cover edge cases and error paths beyond what the BDD scenarios capture."
+    review_plan [
+        shape=hexagon,
+        label="Here is the issue and repo state. How should we approach this?"
     ]
 
     implement [
         label="Implement",
-        prompt="Your goal is: $goal\n\nTDD GREEN phase. Write the minimal code to make all tests pass. Follow existing repository patterns and conventions. Do not add functionality beyond what the tests require."
+        prompt="Your goal is: $goal\nRepo: $repo\nHuman feedback: $human.feedback\n\nIncorporate the human's feedback above. Implement the changes using TDD:\n1. Write tests first that capture the acceptance criteria\n2. Run them to confirm they fail\n3. Write the minimal code to make them pass\n4. Run tests again to confirm they pass\n\nUse the shell tool to run tests. Use read/write/edit tools for code changes. Follow existing repo conventions. Make small, incremental changes."
     ]
 
     run_tests [
         label="Run Tests",
-        prompt="Your goal is: $goal\n\nRun the full test suite including unit tests, integration tests, and BDD step definitions. Report results clearly: total tests, passed, failed, and any error details.",
-        goal_gate=true,
-        retry_target=implement
+        prompt="Your goal is: $goal\nRepo: $repo\n\nRun the full test suite using the shell tool. Report results clearly: total tests, passed, failed, and any error details. If tests fail, show the specific failures."
     ]
 
-    gate [shape=diamond, label="Tests passing?"]
+    test_gate [shape=diamond, label="Tests passing?"]
 
-    start -> plan -> write_steps -> write_tests -> implement -> run_tests -> gate
-    gate -> exit      [label="Pass", condition="outcome=success"]
-    gate -> implement [label="Fail", condition="outcome!=success"]
+    review_changes [
+        shape=hexagon,
+        label="Implementation complete and tests passing. Review the changes?"
+    ]
+
+    open_pr [
+        label="Open PR",
+        prompt="Your goal is: $goal\nRepo: $repo\nHuman feedback: $human.feedback\n\nIncorporate the human's feedback above. Use the shell tool to ship the changes as a PR:\n1. Create a feature branch: `git checkout -b <descriptive-branch-name>`\n2. Run `git add` for the relevant files (not .attractor/ logs)\n3. Create a descriptive commit message referencing the issue\n4. Push the branch: `git push -u origin <branch-name>`\n5. Create a PR: `gh pr create --title \"<title>\" --body \"<body>\"`\n\nThe PR body should reference the issue (e.g. Closes #N) and summarize what was done.\n\nDo NOT force push. Do NOT commit .attractor/ logs."
+    ]
+
+    start -> read_issue -> review_plan
+    review_plan -> implement        [label="[C] Continue"]
+    review_plan -> read_issue       [label="[R] Re-read"]
+    implement -> run_tests -> test_gate
+    test_gate -> review_changes     [label="Pass", condition="outcome=success"]
+    test_gate -> implement          [label="Fail", condition="outcome!=success"]
+    review_changes -> open_pr       [label="[C] Open PR"]
+    review_changes -> implement     [label="[R] Revise"]
+    open_pr -> exit
 }
