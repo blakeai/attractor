@@ -30,10 +30,14 @@ lint:
 fmt:
     uv run ruff format src/ tests/
 
-# Run the attractor CLI
-run *ARGS:
-    uv run attractor {{ ARGS }}
+# Run a pipeline (e.g. just run discovery)
+run NAME *ARGS:
+    uv run attractor run pipelines/{{ NAME }}.dot {{ ARGS }}
 
-# Validate a pipeline file
-validate PIPELINE:
-    uv run attractor validate {{ PIPELINE }}
+# Run a pipeline with auto-approve (e.g. just yolo discovery)
+yolo NAME *ARGS:
+    just run {{ NAME }} --auto-approve {{ ARGS }}
+
+# Validate a pipeline file (e.g. just validate discovery)
+validate NAME:
+    uv run attractor validate pipelines/{{ NAME }}.dot
