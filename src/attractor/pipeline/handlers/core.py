@@ -154,13 +154,19 @@ class WaitForHumanHandler(Handler):
                 selected = c
                 break
 
+        context_updates: dict[str, str] = {
+            "human.gate.selected": selected[0],
+            "human.gate.label": selected[1],
+        }
+
+        # Store freeform feedback so the next stage can use it
+        if answer.text and answer.text.upper() != selected[0].upper():
+            context_updates["human.feedback"] = answer.text
+
         return Outcome(
             status=StageStatus.SUCCESS,
             suggested_next_ids=[selected[2]],
-            context_updates={
-                "human.gate.selected": selected[0],
-                "human.gate.label": selected[1],
-            },
+            context_updates=context_updates,
         )
 
 
@@ -183,8 +189,10 @@ def _parse_accelerator_key(label: str) -> str:
 
 
 def _expand_variables(text: str, graph: Graph, context: Context) -> str:
-    """Expand $<key> variables from graph attrs."""
+    """Expand $<key> variables from graph attrs and context."""
     for key, value in graph.attrs.items():
+        text = text.replace(f"${key}", str(value))
+    for key, value in context.snapshot().items():
         text = text.replace(f"${key}", str(value))
     return text
 

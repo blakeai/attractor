@@ -17,7 +17,7 @@ digraph Discovery {
 
     analyze [
         label="Analyze",
-        prompt="Your goal is: $goal\nRepo: $repo\n\nBased on the exploration and the human's input, break the goal down into discrete, implementable pieces of work. For each piece identify:\n- What it does (clear scope)\n- Why it matters\n- Acceptance criteria\n\nKeep each piece small enough to be a single focused issue. Think about dependency order — what needs to be built first?\n\nPresent the proposed issues as a numbered list with titles and one-line descriptions."
+        prompt="Your goal is: $goal\nRepo: $repo\nHuman feedback: $human.feedback\n\nIncorporate the human's feedback above. Break the goal down into discrete, implementable pieces of work. For each piece identify:\n- What it does (clear scope)\n- Why it matters\n- Acceptance criteria\n\nKeep each piece small enough to be a single focused issue. Think about dependency order — what needs to be built first?\n\nPresent the proposed issues as a numbered list with titles and one-line descriptions."
     ]
 
     discuss_plan [
@@ -27,7 +27,7 @@ digraph Discovery {
 
     create_issues [
         label="Create Issues",
-        prompt="Your goal is: $goal\nRepo: $repo\n\nCreate GitHub issues based on the agreed plan. Use the shell tool to run gh commands.\n\nFor each issue run:\ngh issue create --title \"<title>\" --body \"<body>\"\n\nThe body should include:\n- Summary of what needs to be done\n- Acceptance criteria as a checklist\n- Dependencies on other issues if applicable\n\nCreate issues in dependency order (foundational work first). After creating all issues, run `gh issue list` to confirm they were created."
+        prompt="Your goal is: $goal\nRepo: $repo\nHuman feedback: $human.feedback\n\nIncorporate the human's feedback above. Create GitHub issues based on the agreed plan. Use the shell tool to run gh commands.\n\nFor each issue run:\ngh issue create --title \"<title>\" --body \"<body>\"\n\nThe body should include:\n- Summary of what needs to be done\n- Acceptance criteria as a checklist\n- Dependencies on other issues if applicable\n\nCreate issues in dependency order (foundational work first). After creating all issues, run `gh issue list` to confirm they were created."
     ]
 
     review_issues [

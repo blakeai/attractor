@@ -18,15 +18,21 @@ class ConsoleInterviewer(Interviewer):
         if question.type == QuestionType.MULTIPLE_CHOICE:
             for opt in question.options:
                 print(f"  [{opt.key}] {opt.label}")
-            response = input("Select: ").strip()
+            print("  Or type your feedback/instructions:")
+            response = input("> ").strip()
+            if not response:
+                response = question.options[0].key if question.options else ""
+            # Check if it's a shortcut key
             for opt in question.options:
                 if response.upper() == opt.key.upper():
                     return Answer(value=opt.key, selected_option=opt)
-            if question.options:
-                return Answer(
-                    value=question.options[0].key, selected_option=question.options[0]
-                )
-            return Answer(value=response, text=response)
+            # Freeform response — default to first edge but carry the feedback
+            first_opt = question.options[0] if question.options else None
+            return Answer(
+                value=first_opt.key if first_opt else response,
+                selected_option=first_opt,
+                text=response,
+            )
 
         if question.type in (QuestionType.YES_NO, QuestionType.CONFIRMATION):
             response = input("[Y/N]: ").strip().lower()
