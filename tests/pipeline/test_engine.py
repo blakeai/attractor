@@ -6,7 +6,7 @@ import tempfile
 import pytest
 
 from attractor.pipeline.context import Context
-from attractor.pipeline.engine import Engine
+from attractor.pipeline.engine import Engine, EngineError
 from attractor.pipeline.interviewer.auto import AutoApproveInterviewer
 from attractor.pipeline.interviewer.base import Answer
 from attractor.pipeline.interviewer.queue import QueueInterviewer
@@ -179,3 +179,162 @@ class TestConditionEvaluator:
         assert (
             evaluate_condition("outcome=fail AND last_stage=validate", outcome, context) is False
         )
+
+
+class TestVariableExpansion:
+    @pytest.mark.asyncio
+    async def test_expand_repo_variable(self):
+        graph = parse_dot('''
+            digraph Test {
+                graph [goal="Fix bug", repo="/tmp/my-repo"]
+                start [shape=Mdiamond]
+                exit [shape=Msquare]
+                work [label="Work", prompt="Repo is: $repo"]
+                start -> work -> exit
+            }
+        ''')
+        with tempfile.TemporaryDirectory() as logs:
+            engine = Engine(logs_root=logs)
+            await engine.run(graph)
+
+            with open(os.path.join(logs, "work", "prompt.md")) as f:
+                prompt = f.read()
+            assert "/tmp/my-repo" in prompt
+
+    @pytest.mark.asyncio
+    async def test_expand_custom_variable(self):
+        graph = parse_dot('''
+            digraph Test {
+                graph [goal="Fix bug", author="Alice"]
+                start [shape=Mdiamond]
+                exit [shape=Msquare]
+                work [label="Work", prompt="Author: $author, Goal: $goal"]
+                start -> work -> exit
+            }
+        ''')
+        with tempfile.TemporaryDirectory() as logs:
+            engine = Engine(logs_root=logs)
+            await engine.run(graph)
+
+            with open(os.path.join(logs, "work", "prompt.md")) as f:
+                prompt = f.read()
+            assert "Alice" in prompt
+            assert "Fix bug" in prompt
+
+    @pytest.mark.asyncio
+    async def test_unknown_variable_left_as_is(self):
+        graph = parse_dot('''
+            digraph Test {
+                graph [goal="Fix bug"]
+                start [shape=Mdiamond]
+                exit [shape=Msquare]
+                work [label="Work", prompt="Unknown: $nope"]
+                start -> work -> exit
+            }
+        ''')
+        with tempfile.TemporaryDirectory() as logs:
+            engine = Engine(logs_root=logs)
+            await engine.run(graph)
+
+            with open(os.path.join(logs, "work", "prompt.md")) as f:
+                prompt = f.read()
+            assert "$nope" in prompt
+
+
+class TestMaxSteps:
+    @pytest.mark.asyncio
+    async def test_max_steps_stops_engine(self):
+        """Engine should raise EngineError when max_steps is exceeded."""
+        graph = parse_dot('''
+            digraph Test {
+                graph [goal="Loop forever"]
+                start [shape=Mdiamond]
+                exit [shape=Msquare]
+                a [label="A", prompt="Do A"]
+                b [label="B", prompt="Do B"]
+                start -> a -> b -> a
+                b -> exit [condition="outcome=fail"]
+            }
+        ''')
+        with tempfile.TemporaryDirectory() as logs:
+            engine = Engine(logs_root=logs, max_steps=2)
+            with pytest.raises(EngineError, match="max steps"):
+                await engine.run(graph)
+
+    @pytest.mark.asyncio
+    async def test_max_steps_default_allows_normal_pipeline(self):
+        """Normal pipelines should complete fine with the default max_steps."""
+        graph = parse_dot('''
+            digraph Test {
+                start [shape=Mdiamond]
+                exit [shape=Msquare]
+                work [label="Work", prompt="Do work"]
+                start -> work -> exit
+            }
+        ''')
+        with tempfile.TemporaryDirectory() as logs:
+            engine = Engine(logs_root=logs)
+            outcome = await engine.run(graph)
+            assert outcome.status == StageStatus.SUCCESS
+
+
+class TestConfigLoading:
+    def test_load_config_file(self):
+        import json
+        from attractor.cli import _load_run_config
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"goal": "add CSV export", "repo": "/tmp/repo", "max_steps": 50}, f)
+            f.flush()
+
+            config = _load_run_config(f.name)
+            assert config["goal"] == "add CSV export"
+            assert config["repo"] == "/tmp/repo"
+            assert config["max_steps"] == 50
+
+        os.unlink(f.name)
+
+    def test_flags_override_config(self):
+        import json
+        from attractor.cli import _merge_run_config
+
+        config = {"goal": "from config", "repo": "/config/repo", "max_steps": 50}
+        flags = {"goal": "from flag", "repo": None, "max_steps": None}
+
+        merged = _merge_run_config(config, flags)
+        assert merged["goal"] == "from flag"
+        assert merged["repo"] == "/config/repo"
+        assert merged["max_steps"] == 50
+
+    def test_config_overrides_dot_attrs(self):
+        from attractor.cli import _apply_config_to_graph
+
+        graph = parse_dot('''
+            digraph Test {
+                graph [goal="from DOT"]
+                start [shape=Mdiamond]
+                exit [shape=Msquare]
+                start -> exit
+            }
+        ''')
+        config = {"goal": "from config", "repo": "/tmp/repo"}
+        _apply_config_to_graph(graph, config)
+
+        assert graph.attrs["goal"] == "from config"
+        assert graph.attrs["repo"] == "/tmp/repo"
+
+    def test_empty_config_preserves_dot_attrs(self):
+        from attractor.cli import _apply_config_to_graph
+
+        graph = parse_dot('''
+            digraph Test {
+                graph [goal="from DOT"]
+                start [shape=Mdiamond]
+                exit [shape=Msquare]
+                start -> exit
+            }
+        ''')
+        config: dict = {}
+        _apply_config_to_graph(graph, config)
+
+        assert graph.attrs["goal"] == "from DOT"

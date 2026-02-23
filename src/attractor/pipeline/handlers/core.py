@@ -172,8 +172,9 @@ def _parse_accelerator_key(label: str) -> str:
 
 
 def _expand_variables(text: str, graph: Graph, context: Context) -> str:
-    """Expand $goal variable in text."""
-    text = text.replace("$goal", graph.goal)
+    """Expand $<key> variables from graph attrs."""
+    for key, value in graph.attrs.items():
+        text = text.replace(f"${key}", str(value))
     return text
 
 
