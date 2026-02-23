@@ -7,6 +7,7 @@ import pytest
 
 from attractor.pipeline.context import Context
 from attractor.pipeline.engine import Engine, EngineError
+from attractor.pipeline.handlers.llm_backend import LLMBackend
 from attractor.pipeline.interviewer.auto import AutoApproveInterviewer
 from attractor.pipeline.interviewer.base import Answer
 from attractor.pipeline.interviewer.queue import QueueInterviewer
@@ -413,3 +414,89 @@ class TestAttractorConfigDiscovery:
             # CWD is just another path — same function works
             config = _discover_repo_config(cwd)
             assert config["max_steps"] == 42
+
+
+class TestLLMBackend:
+    @pytest.mark.asyncio
+    async def test_llm_backend_calls_client_and_returns_text(self):
+        """LLMBackend should call Client.complete() and return the response text."""
+        from unittest.mock import AsyncMock
+
+        from attractor.llm.types import (
+            ContentKind,
+            ContentPart,
+            FinishReason,
+            Message,
+            Role,
+            Usage,
+        )
+        from attractor.llm.types import Response as LLMResponse
+        from attractor.pipeline.graph import Node
+
+        mock_client = AsyncMock()
+        mock_client.complete.return_value = LLMResponse(
+            id="test-id",
+            model="claude-sonnet-4-20250514",
+            provider="anthropic",
+            message=Message(
+                role=Role.ASSISTANT,
+                content=[ContentPart(kind=ContentKind.TEXT, text="Here is my analysis...")],
+            ),
+            finish_reason=FinishReason(reason="stop"),
+            usage=Usage(input_tokens=10, output_tokens=20, total_tokens=30),
+        )
+
+        backend = LLMBackend(client=mock_client, model="claude-sonnet-4-20250514")
+        node = Node(id="explore", attrs={"label": "Explore"})
+        context = Context()
+
+        result = await backend.run(node, "Analyze the codebase", context)
+        assert result == "Here is my analysis..."
+        mock_client.complete.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_llm_backend_wired_into_engine(self):
+        """Engine with LLMBackend should write real responses to logs."""
+        from unittest.mock import AsyncMock
+
+        from attractor.llm.types import (
+            ContentKind,
+            ContentPart,
+            FinishReason,
+            Message,
+            Role,
+            Usage,
+        )
+        from attractor.llm.types import Response as LLMResponse
+
+        mock_client = AsyncMock()
+        mock_client.complete.return_value = LLMResponse(
+            id="test-id",
+            model="claude-sonnet-4-20250514",
+            provider="anthropic",
+            message=Message(
+                role=Role.ASSISTANT,
+                content=[ContentPart(kind=ContentKind.TEXT, text="LLM response here")],
+            ),
+            finish_reason=FinishReason(reason="stop"),
+            usage=Usage(input_tokens=10, output_tokens=20, total_tokens=30),
+        )
+
+        backend = LLMBackend(client=mock_client, model="claude-sonnet-4-20250514")
+
+        graph = parse_dot('''
+            digraph Test {
+                graph [goal="Fix bug"]
+                start [shape=Mdiamond]
+                exit [shape=Msquare]
+                work [label="Work", prompt="Goal: $goal"]
+                start -> work -> exit
+            }
+        ''')
+        with tempfile.TemporaryDirectory() as logs:
+            engine = Engine(logs_root=logs, codergen_backend=backend)
+            outcome = await engine.run(graph)
+            assert outcome.status == StageStatus.SUCCESS
+
+            with open(os.path.join(logs, "work", "response.md")) as f:
+                assert "LLM response here" in f.read()

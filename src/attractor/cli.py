@@ -79,6 +79,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         "goal": args.goal,
         "repo": args.repo,
         "max_steps": args.max_steps,
+        "model": args.model,
     }
 
     config = _merge_run_config(repo_config, explicit_config)
@@ -91,10 +92,25 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     logs_root = args.logs or config.get("logs") or f"./logs/{Path(dot_path).stem}"
 
+    # Wire up LLM backend if an API key is available
+    codergen_backend = None
+    try:
+        from attractor.llm.client import Client
+        from attractor.pipeline.handlers.llm_backend import LLMBackend
+
+        client = Client.from_env()
+        if client._providers:
+            model = config.get("model", "claude-sonnet-4-20250514")
+            codergen_backend = LLMBackend(client=client, model=str(model))
+            print(f"LLM backend: {model}")
+    except ImportError:
+        pass
+
     engine = Engine(
         interviewer=interviewer,
         logs_root=logs_root,
         max_steps=int(max_steps),
+        codergen_backend=codergen_backend,
     )
 
     print(f"Running pipeline: {graph.name or dot_path}")
@@ -187,6 +203,11 @@ def main() -> None:
         type=int,
         default=None,
         help="Maximum engine steps before stopping (default: 100)",
+    )
+    run_parser.add_argument(
+        "--model",
+        default=None,
+        help="LLM model to use (default: claude-sonnet-4-20250514)",
     )
     run_parser.add_argument(
         "--auto-approve",
