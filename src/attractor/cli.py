@@ -103,7 +103,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         client = Client.from_env()
         if client._providers:
-            model = config.get("model") or graph.attrs.get("model", "claude-sonnet-4-20250514")
+            model = config.get("model") or graph.attrs.get("model", "claude-sonnet-4-6")
             codergen_backend = AgentBackend(
                 client=client, model=str(model), repo_path=repo_path,
             )
@@ -212,7 +212,7 @@ def main() -> None:
     run_parser.add_argument(
         "--model",
         default=None,
-        help="LLM model to use (default: claude-sonnet-4-20250514)",
+        help="LLM model to use (default: claude-sonnet-4-6)",
     )
     run_parser.add_argument(
         "--auto-approve",

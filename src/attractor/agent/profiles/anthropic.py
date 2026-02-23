@@ -13,7 +13,7 @@ from attractor.llm.types import Tool
 class AnthropicProfile(ProviderProfile):
     def __init__(
         self,
-        model: str = "claude-sonnet-4-5-20250514",
+        model: str = "claude-sonnet-4-6",
         reasoning_effort: str | None = None,
     ):
         self._model = model

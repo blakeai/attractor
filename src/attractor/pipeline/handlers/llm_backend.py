@@ -14,7 +14,7 @@ from attractor.pipeline.graph import Node
 class LLMBackend:
     """Single LLM call per node — no tools, no agentic loop."""
 
-    def __init__(self, client: Client, model: str = "claude-sonnet-4-20250514"):
+    def __init__(self, client: Client, model: str = "claude-sonnet-4-6"):
         self._client = client
         self._model = model
 
@@ -33,7 +33,7 @@ class AgentBackend:
     def __init__(
         self,
         client: Client,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-sonnet-4-6",
         repo_path: str = ".",
         max_tool_rounds: int = 50,
         command_timeout_ms: int = 30000,
