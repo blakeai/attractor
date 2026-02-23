@@ -7,6 +7,7 @@ import asyncio
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -90,7 +91,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     auto_approve = config.get("auto_approve", False) or args.auto_approve
     interviewer = AutoApproveInterviewer() if auto_approve else ConsoleInterviewer()
 
-    default_logs = f"{repo_path}/.attractor/logs/{Path(dot_path).stem}"
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    default_logs = f"{repo_path}/.attractor/logs/{Path(dot_path).stem}-{timestamp}"
     logs_root = args.logs or config.get("logs") or default_logs
 
     # Wire up LLM backend if an API key is available
