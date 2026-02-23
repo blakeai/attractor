@@ -25,9 +25,11 @@ class ConsoleInterviewer(Interviewer):
             # Check if it's a shortcut key
             for opt in question.options:
                 if response.upper() == opt.key.upper():
+                    print(f"  -> {opt.label}")
                     return Answer(value=opt.key, selected_option=opt)
             # Freeform response — default to first edge but carry the feedback
             first_opt = question.options[0] if question.options else None
+            print(f"  -> {first_opt.label if first_opt else 'continuing'} (with feedback)")
             return Answer(
                 value=first_opt.key if first_opt else response,
                 selected_option=first_opt,
