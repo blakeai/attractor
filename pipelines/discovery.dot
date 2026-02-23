@@ -1,5 +1,5 @@
 digraph Discovery {
-    graph [goal="$goal"]
+    graph [goal="$goal", repo="$repo"]
     node [shape=box]
 
     start [shape=Mdiamond, label="Start"]
@@ -7,30 +7,25 @@ digraph Discovery {
 
     explore [
         label="Explore",
-        prompt="Your goal is: $goal\n\nNon-interactive research phase. Read the feature request or issue, explore the codebase for relevant patterns, conventions, and integration points. Identify existing code that relates to this goal. Output raw findings only — no recommendations yet."
+        prompt="Your goal is: $goal\nRepo: $repo\n\nExplore the codebase. Use your tools — read files, glob for patterns, grep for keywords, run shell commands. Understand the repo structure, existing code, tech stack, conventions, and anything relevant to the goal. If the repo is empty or new, note that and focus on what the project needs based on the goal and any README or docs present.\n\nOutput a summary of your raw findings."
     ]
 
     analyze [
         label="Analyze",
-        prompt="Your goal is: $goal\n\nArchitectural analysis phase. Based on the exploration findings, make architectural decisions with rationale. Identify specific files and patterns to follow. Define what is MUST (required scope), SHOULD (nice-to-have), and OUT-OF-SCOPE. Provide clear guidance on approach and integration points."
+        prompt="Your goal is: $goal\nRepo: $repo\n\nBased on your exploration, make architectural decisions. Break the goal down into discrete, implementable pieces of work. For each piece identify:\n- What it does (clear scope)\n- Why it matters\n- Key technical decisions or constraints\n- Acceptance criteria\n\nKeep each piece small enough to be a single focused issue. Think about dependency order — what needs to be built first?"
     ]
 
-    write_features [
-        label="Write Features",
-        prompt="Your goal is: $goal\n\nWrite Gherkin .feature files capturing acceptance criteria as BDD scenarios. Use Background for shared setup, Rules for grouping related scenarios, and Given/When/Then for each scenario. These feature files become the contract for engineering and acceptance. Place them co-located with the feature code."
-    ]
-
-    draft_spec [
-        label="Draft Spec",
-        prompt="Your goal is: $goal\n\nSynthesize the exploration findings, architectural analysis, and Gherkin feature files into a discovery document. Include: requirements summary, architecture guidance, open questions, and references to the .feature files produced. This spec hands off to the engineering pipeline."
+    create_issues [
+        label="Create Issues",
+        prompt="Your goal is: $goal\nRepo: $repo\n\nCreate GitHub issues for each piece of work identified in the analysis. Use the shell tool to run gh commands.\n\nFor each issue run:\ngh issue create --title \"<title>\" --body \"<body>\" --label \"discovery\"\n\nThe body should include:\n- Summary of what needs to be done\n- Acceptance criteria as a checklist\n- Any relevant technical context or constraints\n- Dependencies on other issues if applicable\n\nCreate issues in dependency order (foundational work first). After creating all issues, run `gh issue list` to confirm they were created."
     ]
 
     review_gate [
         shape=hexagon,
-        label="Review Spec"
+        label="Review Issues"
     ]
 
-    start -> explore -> analyze -> write_features -> draft_spec -> review_gate
-    review_gate -> exit       [label="[A] Approve"]
-    review_gate -> draft_spec [label="[R] Revise"]
+    start -> explore -> analyze -> create_issues -> review_gate
+    review_gate -> exit           [label="[A] Approve"]
+    review_gate -> create_issues  [label="[R] Revise"]
 }
