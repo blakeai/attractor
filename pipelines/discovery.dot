@@ -1,0 +1,36 @@
+digraph Discovery {
+    graph [goal="$goal"]
+    node [shape=box]
+
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+
+    explore [
+        label="Explore",
+        prompt="Your goal is: $goal\n\nNon-interactive research phase. Read the feature request or issue, explore the codebase for relevant patterns, conventions, and integration points. Identify existing code that relates to this goal. Output raw findings only — no recommendations yet."
+    ]
+
+    analyze [
+        label="Analyze",
+        prompt="Your goal is: $goal\n\nArchitectural analysis phase. Based on the exploration findings, make architectural decisions with rationale. Identify specific files and patterns to follow. Define what is MUST (required scope), SHOULD (nice-to-have), and OUT-OF-SCOPE. Provide clear guidance on approach and integration points."
+    ]
+
+    write_features [
+        label="Write Features",
+        prompt="Your goal is: $goal\n\nWrite Gherkin .feature files capturing acceptance criteria as BDD scenarios. Use Background for shared setup, Rules for grouping related scenarios, and Given/When/Then for each scenario. These feature files become the contract for engineering and acceptance. Place them co-located with the feature code."
+    ]
+
+    draft_spec [
+        label="Draft Spec",
+        prompt="Your goal is: $goal\n\nSynthesize the exploration findings, architectural analysis, and Gherkin feature files into a discovery document. Include: requirements summary, architecture guidance, open questions, and references to the .feature files produced. This spec hands off to the engineering pipeline."
+    ]
+
+    review_gate [
+        shape=hexagon,
+        label="Review Spec"
+    ]
+
+    start -> explore -> analyze -> write_features -> draft_spec -> review_gate
+    review_gate -> exit       [label="[A] Approve"]
+    review_gate -> draft_spec [label="[R] Revise"]
+}

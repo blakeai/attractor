@@ -1,0 +1,40 @@
+digraph Engineering {
+    graph [goal="$goal", retry_target=implement]
+    node [shape=box]
+
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+
+    plan [
+        label="Plan",
+        prompt="Your goal is: $goal\n\nRead the discovery spec and plan the implementation. Break down into components, identify file paths, define the development sequence, and outline the test strategy. Reference the .feature files from discovery as the source of truth for acceptance criteria."
+    ]
+
+    write_steps [
+        label="Write Steps",
+        prompt="Your goal is: $goal\n\nWrite Playwright BDD step definitions (.steps.ts) that implement the Given/When/Then steps from the .feature files produced in discovery. Use shared steps for common operations, page object patterns for UI interactions, and proper test context management."
+    ]
+
+    write_tests [
+        label="Write Tests",
+        prompt="Your goal is: $goal\n\nTDD RED phase. Write additional unit and integration tests based on the acceptance criteria. Tests MUST fail before implementation — verify they fail and report the failures. Cover edge cases and error paths beyond what the BDD scenarios capture."
+    ]
+
+    implement [
+        label="Implement",
+        prompt="Your goal is: $goal\n\nTDD GREEN phase. Write the minimal code to make all tests pass. Follow existing repository patterns and conventions. Do not add functionality beyond what the tests require."
+    ]
+
+    run_tests [
+        label="Run Tests",
+        prompt="Your goal is: $goal\n\nRun the full test suite including unit tests, integration tests, and BDD step definitions. Report results clearly: total tests, passed, failed, and any error details.",
+        goal_gate=true,
+        retry_target=implement
+    ]
+
+    gate [shape=diamond, label="Tests passing?"]
+
+    start -> plan -> write_steps -> write_tests -> implement -> run_tests -> gate
+    gate -> exit      [label="Pass", condition="outcome=success"]
+    gate -> implement [label="Fail", condition="outcome!=success"]
+}

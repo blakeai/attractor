@@ -1,0 +1,37 @@
+digraph Acceptance {
+    graph [goal="$goal", retry_target=fix]
+    node [shape=box]
+
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+
+    generate_specs [
+        label="Generate Specs",
+        prompt="Your goal is: $goal\n\nRun bddgen to generate Playwright spec files from the .feature and .steps.ts files. This is the BDD codegen step — no hand-written Playwright tests. Verify the generated .spec.js files are correct and complete."
+    ]
+
+    run_playwright [
+        label="Run Playwright",
+        prompt="Your goal is: $goal\n\nRun playwright test against the generated spec files. This is the pre-merge quality gate. Report all results: passed, failed, skipped, and any error output.",
+        goal_gate=true,
+        retry_target=fix
+    ]
+
+    gate [shape=diamond, label="Tests passing?"]
+
+    fix [
+        label="Fix",
+        prompt="Your goal is: $goal\n\nAnalyze the Playwright test failures. Determine whether the issue is in the step definitions, the implementation, or the generated specs. Apply the minimal fix and prepare for re-run."
+    ]
+
+    report [
+        label="Report",
+        prompt="Your goal is: $goal\n\nSummarize the acceptance test results: what was tested, what passed, coverage of the original .feature scenarios, and a merge-readiness verdict."
+    ]
+
+    start -> generate_specs -> run_playwright -> gate
+    gate -> report [label="Pass", condition="outcome=success"]
+    gate -> fix    [label="Fail", condition="outcome!=success"]
+    fix -> run_playwright
+    report -> exit
+}

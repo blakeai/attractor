@@ -1,0 +1,11 @@
+app = "attractor"
+primary_region = "iad"
+
+[build]
+
+[env]
+  # Set per-persona: path to the DOT pipeline this container runs
+  # ATTRACTOR_PIPELINE = "/app/pipelines/engineer.dot"
+
+[processes]
+  app = "uv run attractor run ${ATTRACTOR_PIPELINE} --auto-approve"
