@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,15 @@ def _merge_run_config(config: dict[str, Any], flags: dict[str, Any]) -> dict[str
     return merged
 
 
+def _discover_repo_config(repo_path: str) -> dict[str, Any]:
+    """Load .attractor/config.json from a repo if it exists."""
+    config_file = Path(repo_path) / ".attractor" / "config.json"
+    if config_file.is_file():
+        with open(config_file) as f:
+            return json.load(f)
+    return {}
+
+
 def _apply_config_to_graph(graph: Graph, config: dict[str, Any]) -> None:
     """Apply run config values into graph attrs (config overrides DOT attrs)."""
     for key, value in config.items():
@@ -53,11 +63,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"Parse error: {e}", file=sys.stderr)
         return 1
 
-    # Build run config: DOT attrs < config file < CLI flags
-    config: dict[str, Any] = {}
+    # Build run config: .attractor/config.json < --config file < CLI flags
+    repo_path = args.repo or os.getcwd()
+    repo_config = _discover_repo_config(repo_path)
+
+    explicit_config: dict[str, Any] = {}
     if args.config:
         try:
-            config = _load_run_config(args.config)
+            explicit_config = _load_run_config(args.config)
         except (OSError, json.JSONDecodeError) as e:
             print(f"Config error: {e}", file=sys.stderr)
             return 1
@@ -67,6 +80,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         "repo": args.repo,
         "max_steps": args.max_steps,
     }
+
+    config = _merge_run_config(repo_config, explicit_config)
     config = _merge_run_config(config, flags)
     _apply_config_to_graph(graph, config)
 

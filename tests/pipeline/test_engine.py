@@ -338,3 +338,78 @@ class TestConfigLoading:
         _apply_config_to_graph(graph, config)
 
         assert graph.attrs["goal"] == "from DOT"
+
+
+class TestAttractorConfigDiscovery:
+    def test_discover_config_from_repo_path(self):
+        import json
+        from attractor.cli import _discover_repo_config
+
+        with tempfile.TemporaryDirectory() as repo:
+            attractor_dir = os.path.join(repo, ".attractor")
+            os.makedirs(attractor_dir)
+            config_path = os.path.join(attractor_dir, "config.json")
+            with open(config_path, "w") as f:
+                json.dump({"max_steps": 50, "auto_approve": True}, f)
+
+            config = _discover_repo_config(repo)
+            assert config["max_steps"] == 50
+            assert config["auto_approve"] is True
+
+    def test_discover_config_missing_dir_returns_empty(self):
+        from attractor.cli import _discover_repo_config
+
+        with tempfile.TemporaryDirectory() as repo:
+            config = _discover_repo_config(repo)
+            assert config == {}
+
+    def test_discover_config_missing_file_returns_empty(self):
+        from attractor.cli import _discover_repo_config
+
+        with tempfile.TemporaryDirectory() as repo:
+            os.makedirs(os.path.join(repo, ".attractor"))
+            config = _discover_repo_config(repo)
+            assert config == {}
+
+    def test_three_tier_precedence(self):
+        """Precedence: .attractor/config.json < --config < CLI flags."""
+        import json
+        from attractor.cli import _discover_repo_config, _merge_run_config
+
+        with tempfile.TemporaryDirectory() as repo:
+            # .attractor/config.json — lowest priority
+            attractor_dir = os.path.join(repo, ".attractor")
+            os.makedirs(attractor_dir)
+            with open(os.path.join(attractor_dir, "config.json"), "w") as f:
+                json.dump({"max_steps": 50, "auto_approve": True, "logs": "./logs/repo"}, f)
+
+            repo_config = _discover_repo_config(repo)
+
+            # --config file — middle priority
+            explicit_config = {"max_steps": 75, "logs": "./logs/explicit"}
+
+            # CLI flags — highest priority
+            flags = {"max_steps": 200, "logs": None}
+
+            # Merge: repo < explicit < flags
+            merged = _merge_run_config(repo_config, explicit_config)
+            merged = _merge_run_config(merged, flags)
+
+            assert merged["max_steps"] == 200  # from flags
+            assert merged["logs"] == "./logs/explicit"  # from explicit (flag was None)
+            assert merged["auto_approve"] is True  # from repo config (not overridden)
+
+    def test_discover_config_from_cwd_when_no_repo(self):
+        """When no --repo, discover from CWD."""
+        import json
+        from attractor.cli import _discover_repo_config
+
+        with tempfile.TemporaryDirectory() as cwd:
+            attractor_dir = os.path.join(cwd, ".attractor")
+            os.makedirs(attractor_dir)
+            with open(os.path.join(attractor_dir, "config.json"), "w") as f:
+                json.dump({"max_steps": 42}, f)
+
+            # CWD is just another path — same function works
+            config = _discover_repo_config(cwd)
+            assert config["max_steps"] == 42
