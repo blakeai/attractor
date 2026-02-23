@@ -35,9 +35,11 @@ class Engine:
         interviewer: Interviewer | None = None,
         logs_root: str = "./logs",
         codergen_backend: Any = None,
+        max_steps: int = 100,
     ):
         self._interviewer = interviewer or AutoApproveInterviewer()
         self._logs_root = logs_root
+        self._max_steps = max_steps
 
         if registry:
             self._registry = registry
@@ -109,10 +111,18 @@ class Engine:
         # Create logs directory
         Path(self._logs_root).mkdir(parents=True, exist_ok=True)
 
+        step_count = 0
+
         while True:
             node = current_node
             if node is None:
                 break
+
+            step_count += 1
+            if step_count > self._max_steps:
+                raise EngineError(
+                    f"Pipeline exceeded max steps ({self._max_steps})"
+                )
 
             context.set("current_node", node.id)
 

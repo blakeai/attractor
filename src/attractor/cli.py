@@ -4,15 +4,40 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from attractor.pipeline.engine import Engine, EngineError
+from attractor.pipeline.graph import Graph
 from attractor.pipeline.interviewer.auto import AutoApproveInterviewer
 from attractor.pipeline.interviewer.console import ConsoleInterviewer
 from attractor.pipeline.outcome import StageStatus
 from attractor.pipeline.parser import ParseError, parse_dot_file
 from attractor.pipeline.validator import Severity, validate
+
+
+def _load_run_config(config_path: str) -> dict[str, Any]:
+    """Load a JSON run config file."""
+    with open(config_path) as f:
+        return json.load(f)
+
+
+def _merge_run_config(config: dict[str, Any], flags: dict[str, Any]) -> dict[str, Any]:
+    """Merge CLI flags over config — flags with non-None values win."""
+    merged = dict(config)
+    for key, value in flags.items():
+        if value is not None:
+            merged[key] = value
+    return merged
+
+
+def _apply_config_to_graph(graph: Graph, config: dict[str, Any]) -> None:
+    """Apply run config values into graph attrs (config overrides DOT attrs)."""
+    for key, value in config.items():
+        if key != "max_steps":
+            graph.attrs[key] = value
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -28,13 +53,33 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"Parse error: {e}", file=sys.stderr)
         return 1
 
-    interviewer = AutoApproveInterviewer() if args.auto_approve else ConsoleInterviewer()
+    # Build run config: DOT attrs < config file < CLI flags
+    config: dict[str, Any] = {}
+    if args.config:
+        try:
+            config = _load_run_config(args.config)
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"Config error: {e}", file=sys.stderr)
+            return 1
 
-    logs_root = args.logs or f"./logs/{Path(dot_path).stem}"
+    flags = {
+        "goal": args.goal,
+        "repo": args.repo,
+        "max_steps": args.max_steps,
+    }
+    config = _merge_run_config(config, flags)
+    _apply_config_to_graph(graph, config)
+
+    max_steps = config.get("max_steps", 100)
+    auto_approve = config.get("auto_approve", False) or args.auto_approve
+    interviewer = AutoApproveInterviewer() if auto_approve else ConsoleInterviewer()
+
+    logs_root = args.logs or config.get("logs") or f"./logs/{Path(dot_path).stem}"
 
     engine = Engine(
         interviewer=interviewer,
         logs_root=logs_root,
+        max_steps=int(max_steps),
     )
 
     print(f"Running pipeline: {graph.name or dot_path}")
@@ -110,6 +155,24 @@ def main() -> None:
     # Run command
     run_parser = subparsers.add_parser("run", help="Run a pipeline")
     run_parser.add_argument("pipeline", help="Path to the .dot pipeline file")
+    run_parser.add_argument(
+        "--config",
+        help="Path to JSON run config file",
+    )
+    run_parser.add_argument(
+        "--goal",
+        help="Pipeline goal (overrides config and DOT attrs)",
+    )
+    run_parser.add_argument(
+        "--repo",
+        help="Target repository path (overrides config and DOT attrs)",
+    )
+    run_parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=None,
+        help="Maximum engine steps before stopping (default: 100)",
+    )
     run_parser.add_argument(
         "--auto-approve",
         action="store_true",
