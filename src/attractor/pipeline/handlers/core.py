@@ -98,6 +98,17 @@ class WaitForHumanHandler(Handler):
                 failure_reason="No outgoing edges for human gate",
             )
 
+        # Show the previous stage's full response so the human has context
+        last_stage = context.get("last_stage")
+        if last_stage and logs_root:
+            response_path = Path(logs_root) / str(last_stage) / "response.md"
+            if response_path.exists():
+                response_text = response_path.read_text(encoding="utf-8")
+                self._interviewer.inform(
+                    f"\n{'=' * 60}\n{response_text}\n{'=' * 60}",
+                    stage=str(last_stage),
+                )
+
         choices = []
         for edge in edges:
             label = edge.label or edge.to_node
