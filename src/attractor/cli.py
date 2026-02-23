@@ -95,17 +95,19 @@ def cmd_run(args: argparse.Namespace) -> int:
     default_logs = f"{repo_path}/.attractor/logs/{Path(dot_path).stem}-{timestamp}"
     logs_root = args.logs or config.get("logs") or default_logs
 
-    # Wire up LLM backend if an API key is available
+    # Wire up agent backend if an API key is available
     codergen_backend = None
     try:
         from attractor.llm.client import Client
-        from attractor.pipeline.handlers.llm_backend import LLMBackend
+        from attractor.pipeline.handlers.llm_backend import AgentBackend
 
         client = Client.from_env()
         if client._providers:
             model = config.get("model", "claude-sonnet-4-20250514")
-            codergen_backend = LLMBackend(client=client, model=str(model))
-            print(f"LLM backend: {model}")
+            codergen_backend = AgentBackend(
+                client=client, model=str(model), repo_path=repo_path,
+            )
+            print(f"Agent backend: {model}")
     except ImportError:
         pass
 

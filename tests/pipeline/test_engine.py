@@ -7,7 +7,7 @@ import pytest
 
 from attractor.pipeline.context import Context
 from attractor.pipeline.engine import Engine, EngineError
-from attractor.pipeline.handlers.llm_backend import LLMBackend
+from attractor.pipeline.handlers.llm_backend import AgentBackend, LLMBackend
 from attractor.pipeline.interviewer.auto import AutoApproveInterviewer
 from attractor.pipeline.interviewer.base import Answer
 from attractor.pipeline.interviewer.queue import QueueInterviewer
@@ -500,3 +500,93 @@ class TestLLMBackend:
 
             with open(os.path.join(logs, "work", "response.md")) as f:
                 assert "LLM response here" in f.read()
+
+
+class TestAgentBackend:
+    @pytest.mark.asyncio
+    async def test_agent_backend_uses_session_with_tools(self):
+        """AgentBackend should create a Session and submit the prompt."""
+        from unittest.mock import AsyncMock, patch
+
+        from attractor.llm.types import (
+            ContentKind,
+            ContentPart,
+            FinishReason,
+            Message,
+            Role,
+            Usage,
+        )
+        from attractor.llm.types import Response as LLMResponse
+        from attractor.pipeline.graph import Node
+
+        # Mock client that returns a text-only response (no tool calls = session exits)
+        mock_client = AsyncMock()
+        mock_client.complete.return_value = LLMResponse(
+            id="test-id",
+            model="claude-sonnet-4-20250514",
+            provider="anthropic",
+            message=Message(
+                role=Role.ASSISTANT,
+                content=[ContentPart(kind=ContentKind.TEXT, text="I explored the repo and found README.md")],
+            ),
+            finish_reason=FinishReason(reason="stop"),
+            usage=Usage(input_tokens=10, output_tokens=20, total_tokens=30),
+        )
+
+        with tempfile.TemporaryDirectory() as repo:
+            backend = AgentBackend(client=mock_client, model="claude-sonnet-4-20250514", repo_path=repo)
+            node = Node(id="explore", attrs={"label": "Explore"})
+            context = Context()
+
+            result = await backend.run(node, "Explore the codebase", context)
+            assert "explored the repo" in result
+            # Verify it called complete (the session loop ran)
+            mock_client.complete.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_agent_backend_wired_into_engine(self):
+        """Engine with AgentBackend should run pipeline with tool-capable agent."""
+        from unittest.mock import AsyncMock
+
+        from attractor.llm.types import (
+            ContentKind,
+            ContentPart,
+            FinishReason,
+            Message,
+            Role,
+            Usage,
+        )
+        from attractor.llm.types import Response as LLMResponse
+
+        mock_client = AsyncMock()
+        mock_client.complete.return_value = LLMResponse(
+            id="test-id",
+            model="claude-sonnet-4-20250514",
+            provider="anthropic",
+            message=Message(
+                role=Role.ASSISTANT,
+                content=[ContentPart(kind=ContentKind.TEXT, text="Agent completed the task")],
+            ),
+            finish_reason=FinishReason(reason="stop"),
+            usage=Usage(input_tokens=10, output_tokens=20, total_tokens=30),
+        )
+
+        with tempfile.TemporaryDirectory() as repo:
+            backend = AgentBackend(client=mock_client, model="claude-sonnet-4-20250514", repo_path=repo)
+
+            graph = parse_dot('''
+                digraph Test {
+                    graph [goal="Explore"]
+                    start [shape=Mdiamond]
+                    exit [shape=Msquare]
+                    work [label="Work", prompt="Goal: $goal"]
+                    start -> work -> exit
+                }
+            ''')
+            with tempfile.TemporaryDirectory() as logs:
+                engine = Engine(logs_root=logs, codergen_backend=backend)
+                outcome = await engine.run(graph)
+                assert outcome.status == StageStatus.SUCCESS
+
+                with open(os.path.join(logs, "work", "response.md")) as f:
+                    assert "Agent completed the task" in f.read()
